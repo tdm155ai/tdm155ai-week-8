@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { Readable } from "node:stream";
 
 // Native capture for the multi-mic machine, because browsers usually stop at 2 channels. The server runs ffmpeg on
 // this Mac (Homebrew's ffmpeg), captures every channel of the chosen input, and:
@@ -34,8 +36,30 @@ function listDevices() {
   });
 }
 
+// GET ?file=<name>.wav&mix=0,1,2 → a saved session as one MP3, those channels mixed and evened out (for listening);
+// GET ?file=<name>.wav → the saved WAV itself, every channel.
+async function savedSession(params) {
+  const name = params.get("file");
+  if (!/^[\w.-]+\.wav$/.test(name)) return Response.json({ error: "No such recording." }, { status: 404 });
+  const file = path.join(repoRoot, "_media", "multi", name);
+  try {
+    await stat(/* turbopackIgnore: true */ file);
+  } catch {
+    return Response.json({ error: "No such recording." }, { status: 404 });
+  }
+  const mix = (params.get("mix") || "").split(",").filter((c) => /^\d+$/.test(c));
+  if (!mix.length) {
+    const stream = Readable.toWeb(createReadStream(/* turbopackIgnore: true */ file));
+    return new Response(stream, { headers: { "content-type": "audio/wav", "content-disposition": `attachment; filename="${name}"` } });
+  }
+  const child = spawn(/* turbopackIgnore: true */ ffmpeg, ["-v", "error", "-i", file, "-af", `pan=mono|c0=${mix.map((c) => `c${c}`).join("+")},dynaudnorm`, "-c:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "pipe:1"]);
+  return new Response(Readable.toWeb(child.stdout), { headers: { "content-type": "audio/mpeg", "content-disposition": `attachment; filename="${name.replace(/\.wav$/, "")}-mix.mp3"` } });
+}
+
 export async function GET(request) {
-  const device = new URL(request.url).searchParams.get("device");
+  const params = new URL(request.url).searchParams;
+  if (params.has("file")) return savedSession(params);
+  const device = params.get("device");
   if (device === null) {
     const devices = await listDevices();
     return devices ? Response.json({ devices }) : Response.json({ error: "ffmpeg isn't installed (brew install ffmpeg)." }, { status: 500 });

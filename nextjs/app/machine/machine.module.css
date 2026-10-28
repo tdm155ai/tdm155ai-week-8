@@ -44,7 +44,7 @@
 .fields small { color: var(--muted); font-weight: 400; line-height: 1.4; }
 .row { display: flex; gap: 8px; }
 .row select { flex: 1; min-width: 0; }
-.row button, .small, .actions button, .marks button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font-size: 13px; white-space: nowrap; }
+.row button, .small, .actions button, .actions .linkButton, .marks button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font-size: 13px; white-space: nowrap; }
 .check { display: flex !important; grid-template-columns: none; align-items: flex-start; gap: 8px; color: var(--muted); font-size: 13px; font-weight: 500; line-height: 1.4; }
 .check input { margin-top: 2px; accent-color: var(--accent); }
 

@@ -80,6 +80,7 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
     model: "openai/gpt-4o-mini-transcribe",
     language: "en",
     threshold: 0.02,
+    auto: true,
     bleedGate: true,
     suggestModel: "anthropic/claude-haiku-5.5",
     autoSuggest: false,
@@ -93,6 +94,7 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [levels, setLevels] = useState([]);
+  const [thresholds, setThresholds] = useState([]);
   const [channels, setChannels] = useState(0);
   const [savedFile, setSavedFile] = useState("");
   const [error, setError] = useState("");
@@ -127,8 +129,8 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
   }, [recording]);
 
   useEffect(() => {
-    if (recorder.current) Object.assign(recorder.current.settings, { threshold: settings.threshold, bleedGate: settings.bleedGate, enabled: used });
-  }, [settings.threshold, settings.bleedGate, settings.enabled, settings.count]);
+    if (recorder.current) Object.assign(recorder.current.settings, { threshold: settings.threshold, auto: settings.auto, bleedGate: settings.bleedGate, enabled: used });
+  }, [settings.threshold, settings.auto, settings.bleedGate, settings.enabled, settings.count]);
 
   const set = (patch) => setSettings((current) => ({ ...current, ...patch }));
   const names = Array.from({ length: 32 }, (_, c) => settings.names[c] || (c === 0 ? "Host" : `Guest ${c}`));
@@ -186,11 +188,11 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
     setSavedFile("");
     const offset = lines.length ? Math.max(...lines.map((line) => line.start)) + 1 : 0;
     const engine = new MultiRecorder({
-      onLevels: setLevels,
+      onLevels: (dbs, marks) => { setLevels(dbs); setThresholds(marks); },
       onSegment: (segment) => transcribe(segment, offset),
       onEnd: (message) => { setError(message); stop(); },
     });
-    const options = { threshold: settings.threshold, bleedGate: settings.bleedGate, enabled: used };
+    const options = { threshold: settings.threshold, auto: settings.auto, bleedGate: settings.bleedGate, enabled: used };
     try {
       const info = settings.source === "native"
         ? await engine.startNative(captureBase, settings.nativeDevice, options)
@@ -212,6 +214,7 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
     recorder.current = null;
     setRecording(false);
     setLevels([]);
+    setThresholds([]);
     const blob = await engine?.stop();
     if (blob) setAudio(blob);
   }
@@ -297,7 +300,7 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
                 </span>
                 <span className={styles.meterTrack}>
                   <span className={styles.meterFill} style={{ width: `${((db + 60) / 60) * 100}%`, background: db > -6 ? "var(--error)" : colors[c] }} />
-                  <span className={styles.meterMark} style={{ left: `${((thresholdDb + 60) / 60) * 100}%` }} title="Speech threshold" />
+                  <span className={styles.meterMark} style={{ left: `${(((thresholds[c] ?? thresholdDb) + 60) / 60) * 100}%` }} title="Speech threshold" />
                 </span>
               </div>
             );
@@ -353,13 +356,17 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
           <label>Language
             <input value={settings.language} onChange={(e) => set({ language: e.target.value })} placeholder="en (blank: detect)" />
           </label>
-          <label>Speech threshold: {thresholdDb} dB
-            <input type="range" min="-50" max="-15" value={thresholdDb} onChange={(e) => set({ threshold: 10 ** (Number(e.target.value) / 20) })} />
-            <small>The line on the meters. Talking should go past it, and the room's hum shouldn't.</small>
+          <label className={styles.check}>
+            <input type="checkbox" checked={settings.auto} onChange={(e) => set({ auto: e.target.checked })} />
+            Automatic speech detection: each microphone learns its own background level, and speech is anything well above it (the line on each meter)
           </label>
+          {!settings.auto && <label>Speech threshold: {thresholdDb} dB
+            <input type="range" min="-60" max="-15" value={thresholdDb} onChange={(e) => set({ threshold: 10 ** (Number(e.target.value) / 20) })} />
+            <small>The line on the meters. Talking should go past it, and the room's hum shouldn't.</small>
+          </label>}
           <label className={styles.check}>
             <input type="checkbox" checked={settings.bleedGate} onChange={(e) => set({ bleedGate: e.target.checked })} />
-            Bleed gate: only count a microphone as speaking when it's clearly louder than every other one
+            Bleed gate: only the loudest microphone counts as speaking, so a voice picked up by the other microphones isn't transcribed twice
           </label>
         </div>
       </details>
@@ -371,6 +378,10 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
             <span className={styles.actions}>
               <button type="button" onClick={exportTranscript} disabled={!finished.length}>Download .md</button>
               {audio && <button type="button" onClick={() => download(`multi-interview-${new Date().toISOString().slice(0, 10)}.webm`, audio)}>Download recording</button>}
+              {savedFile && !recording && <>
+                <a className={styles.linkButton} href={`${captureBase}/capture?file=${encodeURIComponent(savedFile.split("/").pop())}&mix=${used.map((on, c) => on ? c : null).filter((c) => c !== null && c < (channels || 0)).join(",")}`} download>Download mix (MP3)</a>
+                <a className={styles.linkButton} href={`${captureBase}/capture?file=${encodeURIComponent(savedFile.split("/").pop())}`} download>All channels (WAV)</a>
+              </>}
               <button type="button" onClick={clearSession} disabled={recording || (!lines.length && !suggestions.length)}>Clear</button>
             </span>
           </header>

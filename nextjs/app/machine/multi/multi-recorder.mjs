@@ -33,18 +33,19 @@ registerProcessor("tap-multi", Tap);
 `;
 
 export class MultiRecorder {
-  // onLevels([dB, …]) about 20 times a second; onSegment({ channel, start, seconds, wav }) for each utterance;
+  // onLevels([dB, …], [threshold dB, …]) about 20 times a second; onSegment({ channel, start, seconds, wav }) for each utterance;
   // onEnd(message) if the native capture stops on its own.
   constructor({ onLevels, onSegment, onEnd }) {
     this.onLevels = onLevels;
     this.onSegment = onSegment;
     this.onEnd = onEnd;
     // enabled: which channels are people (the rest are ignored).
-    this.settings = { threshold: 0.02, bleedGate: true, pause: 0.8, longest: 15, shortest: 0.4, enabled: [] };
+    this.settings = { threshold: 0.02, auto: true, bleedGate: true, pause: 0.8, longest: 15, shortest: 0.4, enabled: [] };
   }
 
   setup(channels, rate) {
     this.channels = channels;
+    this.floors = [];
     this.samples = 0;
     this.lastLevels = 0;
     this.segmenters = Array.from({ length: channels }, (_, channel) => new Segmenter(rate, (segment) => this.onSegment({ channel, ...segment }), this.settings));
@@ -118,18 +119,28 @@ export class MultiRecorder {
     }
   }
 
+  // Speech detection. With `auto` on (the default), each microphone's threshold follows its own background level: the
+  // floor drops quickly to the quietest moments and rises slowly, and speech is anything 12 dB above it (and above
+  // −60 dB). That copes with inputs whose gain is set low, where a fixed threshold misses quiet talkers. With the bleed
+  // gate on, only the loudest microphone in use counts as speaking at any moment: the person nearest a microphone is
+  // loudest on it, and the same voice on the other microphones (bleed) is quieter.
   block(data) {
     const startSample = this.samples;
     this.samples += data[0].length;
     const levels = data.map(rms);
+    const { threshold, auto, bleedGate, enabled } = this.settings;
+    this.floors ||= [];
+    const thresholds = levels.map((level, c) => {
+      const floor = this.floors[c] ?? level;
+      this.floors[c] = level < floor ? floor * 0.7 + level * 0.3 : floor * 0.997 + level * 0.003;
+      return auto ? Math.max(this.floors[c] * 4, 0.001) : threshold;
+    });
     const now = performance.now();
-    if (now - this.lastLevels > 50) { this.lastLevels = now; this.onLevels(levels.map(toDb)); }
-    const { threshold, bleedGate, enabled } = this.settings;
+    if (now - this.lastLevels > 50) { this.lastLevels = now; this.onLevels(levels.map(toDb), thresholds.map(toDb)); }
+    const loudest = Math.max(0, ...levels.filter((_, i) => enabled[i] !== false));
     data.forEach((samples, c) => {
       if (!this.segmenters?.[c]) return;
-      if (enabled[c] === false) { this.segmenters[c].push(samples, false, startSample); return; }
-      const loudestOther = Math.max(0, ...levels.filter((_, i) => i !== c && enabled[i] !== false));
-      const speaking = levels[c] > threshold && (!bleedGate || levels[c] > loudestOther * 1.6);
+      const speaking = enabled[c] !== false && levels[c] > thresholds[c] && (!bleedGate || levels[c] >= loudest);
       this.segmenters[c].push(samples, speaking, startSample);
     });
   }
