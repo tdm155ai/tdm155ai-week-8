@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SiteFooter, SiteHeader } from "../components/Chrome.jsx";
 import Machine from "./Machine.jsx";
 
@@ -19,6 +20,7 @@ export default function MachinePage() {
           <p className="eyebrow">Record · transcribe · follow up</p>
           <h1>Interview machine</h1>
           <p className="lede">Record from your interface, see the transcript as you talk, and get follow-up questions for the producer.</p>
+          <p className="machine-more"><Link href="/machine/multi">More than 2 microphones? Use the multi-mic interview machine →</Link></p>
         </header>
         <Machine apiBase="/machine/api" storageKey="tdm155ai-week-8:machine" />
       </main>

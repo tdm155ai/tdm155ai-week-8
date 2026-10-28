@@ -46,7 +46,7 @@ export async function askPermission() {
   stream.getTracks().forEach((track) => track.stop());
 }
 
-function rms(samples) {
+export function rms(samples) {
   let sum = 0;
   for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
   return Math.sqrt(sum / (samples.length || 1));
@@ -91,8 +91,8 @@ export function base64(buffer) {
 }
 
 // One channel's utterance cutter: speech starts a segment (with a little sound from just before), and a pause, or
-// reaching the longest allowed segment, ends it.
-class Segmenter {
+// reaching the longest allowed segment, ends it. (The multi-mic machine, in multi/, uses it too.)
+export class Segmenter {
   constructor(rate, onSegment, options) {
     this.rate = rate;
     this.onSegment = onSegment;
@@ -111,15 +111,16 @@ class Segmenter {
       if (!speaking) return;
       this.blocks = this.preroll.map((item) => item.block);
       this.start = this.preroll[0].startSample;
+      this.length = this.blocks.reduce((sum, b) => sum + b.length, 0);
       this.preroll = [];
       this.quiet = 0;
       this.speech = seconds;
       return;
     }
     this.blocks.push(block);
+    this.length += block.length;
     if (speaking) { this.speech += seconds; this.quiet = 0; } else this.quiet += seconds;
-    const length = this.blocks.length * BLOCK / this.rate;
-    if (this.quiet >= this.options.pause || length >= this.options.longest) this.flush();
+    if (this.quiet >= this.options.pause || this.length / this.rate >= this.options.longest) this.flush();
   }
 
   flush() {

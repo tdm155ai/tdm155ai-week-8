@@ -4,7 +4,7 @@ import { site } from "../../lib/content.mjs";
 // `current` marks the section you're on: "docs", "machine", "remix", or nothing.
 const sections = [
   ["docs", "/docs", "Docs"],
-  ["machine", "/machine", "Interview machine"],
+  ["machine", "/machine", "Machine"],
   ["remix", "/remix", "Remix"],
 ];
 
