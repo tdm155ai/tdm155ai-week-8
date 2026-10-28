@@ -209,6 +209,20 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
     }
   }
 
+  // The session's WAV stays in _media/multi/ until it's deleted here (download it first if you want it).
+  async function deleteRecording() {
+    const name = savedFile.split("/").pop();
+    if (!confirm(`Delete ${name} from this Mac? Download it first if you want to keep it. The transcript stays.`)) return;
+    try {
+      const response = await fetch(`${captureBase}/capture?file=${encodeURIComponent(name)}`, { method: "DELETE" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || `Delete failed (${response.status}).`);
+      setSavedFile("");
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   async function stop() {
     const engine = recorder.current;
     recorder.current = null;
@@ -381,6 +395,7 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
               {savedFile && !recording && <>
                 <a className={styles.linkButton} href={`${captureBase}/capture?file=${encodeURIComponent(savedFile.split("/").pop())}&mix=${used.map((on, c) => on ? c : null).filter((c) => c !== null && c < (channels || 0)).join(",")}`} download>Download mix (MP3)</a>
                 <a className={styles.linkButton} href={`${captureBase}/capture?file=${encodeURIComponent(savedFile.split("/").pop())}`} download>All channels (WAV)</a>
+                <button type="button" onClick={deleteRecording}>Delete from this Mac</button>
               </>}
               <button type="button" onClick={clearSession} disabled={recording || (!lines.length && !suggestions.length)}>Clear</button>
             </span>

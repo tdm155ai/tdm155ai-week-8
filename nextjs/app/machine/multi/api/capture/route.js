@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
@@ -54,6 +54,18 @@ async function savedSession(params) {
   }
   const child = spawn(/* turbopackIgnore: true */ ffmpeg, ["-v", "error", "-i", file, "-af", `pan=mono|c0=${mix.map((c) => `c${c}`).join("+")},dynaudnorm`, "-c:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "pipe:1"]);
   return new Response(Readable.toWeb(child.stdout), { headers: { "content-type": "audio/mpeg", "content-disposition": `attachment; filename="${name.replace(/\.wav$/, "")}-mix.mp3"` } });
+}
+
+// DELETE ?file=<name>.wav → removes a saved session from this Mac.
+export async function DELETE(request) {
+  const name = new URL(request.url).searchParams.get("file");
+  if (!/^[\w.-]+\.wav$/.test(name || "")) return Response.json({ error: "No such recording." }, { status: 404 });
+  try {
+    await unlink(/* turbopackIgnore: true */ path.join(repoRoot, "_media", "multi", name));
+    return Response.json({ deleted: name });
+  } catch {
+    return Response.json({ error: "No such recording." }, { status: 404 });
+  }
 }
 
 export async function GET(request) {
