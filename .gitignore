@@ -1,0 +1,40 @@
+# --- macOS ---
+.DS_Store
+._*
+
+# --- local-only folders: scratch and raw intake ---
+_raw/
+_temp/
+# what the utils/ scripts generate
+output/
+# local capture files; shared code never includes the media
+_media/*
+!_media/.gitkeep
+
+# --- secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Node / JS ---
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+build/
+.turbo/
+.cache/
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
+.vercel
+
+# --- editors / tools ---
+.vscode/
+.idea/
+*.swp
+.claude/settings.local.json
+
+# --- logs ---
+*.log
