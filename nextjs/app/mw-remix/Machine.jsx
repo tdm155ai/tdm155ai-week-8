@@ -111,6 +111,8 @@ export default function Machine({ apiBase, storageKey }) {
   });
   const [lines, setLines] = useState([]);
   const [context, setContext] = useState("");
+  // Markdown or text files uploaded under Setup, sent with every framed request: [{ name, text }].
+  const [documents, setDocuments] = useState([]);
   const [instructions, setInstructions] = useState(defaultInstructions);
   const [suggestions, setSuggestions] = useState([]);
   const [busy, setBusy] = useState("");
@@ -132,13 +134,14 @@ export default function Machine({ apiBase, storageKey }) {
   const started = useRef(0);
   const transcriptRef = useRef(null);
   const latest = useRef({});
-  latest.current = { settings, lines, context, instructions, suggestions, elapsed, recording };
+  latest.current = { settings, lines, context, documents, instructions, suggestions, elapsed, recording };
 
   // Restore the last session from this browser, then keep saving it.
   useEffect(() => {
     setSettings((current) => ({ ...current, ...load(store("settings"), {}) }));
     setLines(load(store("lines"), []).filter((line) => !line.pending));
     setContext(load(store("context"), ""));
+    setDocuments(load(store("documents"), []));
     setInstructions(load(store("instructions"), defaultInstructions));
     setSuggestions(load(store("suggestions"), []).map((item) => ({ kind: "question", ...item })));
     setReady(true);
@@ -148,6 +151,7 @@ export default function Machine({ apiBase, storageKey }) {
   useEffect(() => { if (ready) save(store("settings"), settings); }, [ready, settings]);
   useEffect(() => { if (ready) save(store("lines"), lines); }, [ready, lines]);
   useEffect(() => { if (ready) save(store("context"), context); }, [ready, context]);
+  useEffect(() => { if (ready) save(store("documents"), documents); }, [ready, documents]);
   useEffect(() => { if (ready) save(store("instructions"), instructions); }, [ready, instructions]);
   useEffect(() => { if (ready) save(store("suggestions"), suggestions); }, [ready, suggestions]);
 
@@ -185,6 +189,22 @@ export default function Machine({ apiBase, storageKey }) {
   }, []);
 
   const set = (patch) => setSettings((current) => ({ ...current, ...patch }));
+
+  // Upload context: Markdown or text files, read in the browser and kept with the session (up to about 400 KB in all).
+  async function addDocuments(fileList) {
+    const files = [...fileList];
+    const read = await Promise.all(files.map(async (file) => ({ name: file.name, text: await file.text() })));
+    setDocuments((current) => {
+      const next = [...current.filter((doc) => !read.some((item) => item.name === doc.name)), ...read];
+      const total = next.reduce((sum, doc) => sum + doc.text.length, 0);
+      if (total > 400000) { setError("That's more than about 400 KB of documents in all; remove one or upload a shorter version."); return current; }
+      return next;
+    });
+  }
+
+  function removeDocument(name) {
+    setDocuments((current) => current.filter((doc) => doc.name !== name));
+  }
 
   async function findInputs() {
     try {
@@ -273,7 +293,7 @@ export default function Machine({ apiBase, storageKey }) {
     const { settings, lines, context, instructions } = latest.current;
     setPick(null);
     setBusy(mode);
-    const base = { model: settings.suggestModel, instructions, context, transcript: transcriptText(lines, settings.names), excerpt, note };
+    const base = { model: settings.suggestModel, instructions, context, documents: latest.current.documents, transcript: transcriptText(lines, settings.names), excerpt, note };
     const modes = mode === "question" ? ["plain", "question"] : [mode];
     const results = await Promise.allSettled(modes.map(async (m) => {
       const response = await fetch(`${apiBase}/suggest`, {
@@ -341,7 +361,7 @@ export default function Machine({ apiBase, storageKey }) {
       const response = await fetch(`${apiBase}/suggest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: settings.suggestModel, mode: "beatsheet", instructions, context, transcript: transcriptText(lines, settings.names) }),
+        body: JSON.stringify({ model: settings.suggestModel, mode: "beatsheet", instructions, context, documents: latest.current.documents, transcript: transcriptText(lines, settings.names) }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || `The beat sheet failed (${response.status}).`);
@@ -372,7 +392,7 @@ export default function Machine({ apiBase, storageKey }) {
   const sentForTranscription = settings.model === "local-whisper"
     ? { file: "<one utterance: 16 kHz mono WAV>", response_format: "json", ...(settings.language ? { language: settings.language } : {}), prompt: hints }
     : transcriptionRequest({ model: settings.model, language: settings.language, prompt: hints });
-  const sentForQuestions = suggestRequest({ model: settings.suggestModel, mode: "question", instructions, message: suggestMessage({ mode: "question", context: "{the pre-interview notes}", transcript: "{the transcript so far}", excerpt: "{the passage you highlighted}", note: "{your note, if any}" }) });
+  const sentForQuestions = suggestRequest({ model: settings.suggestModel, mode: "question", instructions, message: suggestMessage({ mode: "question", documents: documents.length ? [{ name: "{each uploaded document}", text: "{its text}" }] : [], context: "{the pre-interview notes}", transcript: "{the transcript so far}", excerpt: "{the passage you highlighted}", note: "{your note, if any}" }) });
   const sentUnframed = suggestRequest({ model: settings.suggestModel, mode: "plain", instructions, message: suggestMessage({ mode: "plain", around: "{the transcript lines around the passage}", excerpt: "{the passage you highlighted}", note: "{your note, if any}" }) });
 
   return (
@@ -431,6 +451,17 @@ export default function Machine({ apiBase, storageKey }) {
             <input type="checkbox" checked={settings.bleedGate} onChange={(e) => set({ bleedGate: e.target.checked })} />
             Bleed gate: only the louder microphone counts as speaking, so a voice picked up by both isn't transcribed twice
           </label>}
+          <label className={styles.wide}>Context
+            <input type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" multiple onChange={(e) => { addDocuments(e.target.files); e.target.value = ""; }} />
+            <small>Upload as many Markdown or text files as you like: the pre-interview transcript, the beat sheet you made from it, the guest's context repository README, your own notes. The AI reads all of them for the starter question, every highlighted question, research, and the beat sheet.</small>
+            {documents.length > 0 && (
+              <ul className={styles.documents}>
+                {documents.map((doc) => (
+                  <li key={doc.name}><span>{doc.name}</span><small>{Math.max(1, Math.round(doc.text.length / 1000))} K</small><button type="button" onClick={() => removeDocument(doc.name)} aria-label={`Remove ${doc.name}`}>Remove</button></li>
+                ))}
+              </ul>
+            )}
+          </label>
           {settings.kind === "pre-interview"
             ? <p className={styles.fieldNote}>There are no notes yet: this recording makes them. When you're done, <strong>Use as pre-interview notes</strong> above the transcript keeps it for the practice run and the live interview.</p>
             : <label className={styles.wide}>Pre-interview notes
@@ -453,7 +484,7 @@ export default function Machine({ apiBase, storageKey }) {
           </div>
           <div>
             <h3>Questions and research</h3>
-            <p>Starter question, Beat sheet, and Research each send one request: your instructions as the system prompt, then the pre-interview notes, the transcript so far, and the ask. Research adds OpenRouter's web search (the Exa engine, which cites its sources) and costs a little more per call. A Question highlight sends two requests at once: the framed one, and an unframed one that gets none of your instructions, notes, or transcript, only the passage, the lines around it, and your note. Its single question is tagged <em>Unframed</em>, so you can compare. The prompts live in <code>app/machine/prompts.mjs</code>.</p>
+            <p>Starter question, Beat sheet, and Research each send one request: your instructions as the system prompt, then any documents you uploaded under Setup, the pre-interview notes, the transcript so far, and the ask. Research adds OpenRouter's web search (the Exa engine, which cites its sources) and costs a little more per call. A Question highlight sends two requests at once: the framed one, and an unframed one that gets none of your instructions, notes, or transcript, only the passage, the lines around it, and your note. Its single question is tagged <em>Unframed</em>, so you can compare. The prompts live in <code>app/machine/prompts.mjs</code>.</p>
             <label className={styles.block}>Model
               <select value={settings.suggestModel} onChange={(e) => set({ suggestModel: e.target.value })}>
                 {suggestModels.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
@@ -511,7 +542,7 @@ export default function Machine({ apiBase, storageKey }) {
                   : <button type="button" className={styles.accentButton} onClick={() => setContext(transcriptText(lines, settings.names))}>Use as pre-interview notes</button>
               )}
               <button type="button" onClick={exportTranscript} disabled={!finished.length}>Download .md</button>
-              <button type="button" onClick={exportBeatSheet} disabled={!!busy || (!finished.length && !context.trim())} title="A one-page producer's brief for the host, written by the AI from the notes and this transcript">{busy === "beatsheet" ? "Writing…" : "Beat sheet .md"}</button>
+              <button type="button" onClick={exportBeatSheet} disabled={!!busy || (!finished.length && !context.trim() && !documents.length)} title="A one-page producer's brief for the host, written by the AI from the notes and this transcript">{busy === "beatsheet" ? "Writing…" : "Beat sheet .md"}</button>
               {audio && <button type="button" onClick={() => download(`${settings.kind}-${new Date().toISOString().slice(0, 10)}.${audio.type.includes("mp4") ? "m4a" : "webm"}`, audio)}>Download recording</button>}
               <button type="button" onClick={clearSession} disabled={recording || (!lines.length && !suggestions.length)}>Clear</button>
             </span>
@@ -547,7 +578,7 @@ export default function Machine({ apiBase, storageKey }) {
 
         <section className={styles.producer} aria-label="Producer">
           <header className={styles.panelHead}><h2>Producer</h2></header>
-          {!context.trim() && settings.kind !== "pre-interview" && <p className={styles.hint}>No pre-interview notes yet. The AI works better with them: add them under Setup, or record the pre-interview first.</p>}
+          {!context.trim() && !documents.length && settings.kind !== "pre-interview" && <p className={styles.hint}>No pre-interview notes or documents yet. The AI works better with them: add them under Setup, or record the pre-interview first.</p>}
           <div className={styles.suggestBar}>
             <button type="button" className={styles.primary} onClick={() => ask("starter")} disabled={!!busy}>{busy === "starter" ? "Thinking…" : "Starter question"}</button>
             <span className={styles.hint}>Then highlight any part of the transcript for a follow-up question, or to research a claim.</span>

@@ -54,6 +54,14 @@
 .stepStatic .stepTitle { flex: 1; min-width: 240px; }
 .stepStatic .kinds { flex: none; }
 .wide { grid-column: 1 / -1; }
+.fields input[type="file"] { width: 100%; padding: 8px 0; color: var(--muted); font-size: 13px; }
+.fields input[type="file"]::file-selector-button { margin-right: 10px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.documents { display: grid; gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }
+.documents li { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font-weight: 500; }
+.documents li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.documents li small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.documents li button { padding: 3px 9px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; }
+.documents li button:hover { border-color: var(--error); color: var(--error); }
 .fieldNote { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .fieldNote strong { color: var(--ink); }
 .accentButton { border-color: var(--accent) !important; color: var(--accent) !important; font-weight: 700; }

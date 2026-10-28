@@ -50,12 +50,20 @@ function fill(mode, excerpt, note) {
   return asks[mode].replace("EXCERPT", excerpt.trim()).replace("NOTE", note.trim() ? `The producer adds: ${note.trim()}` : "").replace(/\n{3,}/g, "\n\n");
 }
 
-// The user message: the notes, the transcript (only the end of a long one), then the ask. For the unframed question
-// ("plain"), only the lines around the passage (`around`), then the ask.
-export function suggestMessage({ mode, context = "", transcript = "", excerpt = "", note = "", around = "" }) {
+// Documents the producer uploaded under Setup (Markdown or text: a context repository's README, an earlier
+// transcript, notes), as one block. Each is cut at 24,000 characters so a long one can't crowd out the rest.
+function documentsBlock(documents) {
+  const items = (documents || []).filter((doc) => doc && doc.text && doc.text.trim());
+  if (!items.length) return "";
+  return `Documents the producer uploaded:\n\n${items.map((doc) => `### ${doc.name || "Untitled"}\n${doc.text.length > 24000 ? `${doc.text.slice(0, 24000)}\n[…]` : doc.text.trim()}`).join("\n\n")}\n\n`;
+}
+
+// The user message: the uploaded documents (if any), the notes, the transcript (only the end of a long one), then the
+// ask. For the unframed question ("plain"), only the lines around the passage (`around`), then the ask.
+export function suggestMessage({ mode, context = "", transcript = "", excerpt = "", note = "", around = "", documents = [] }) {
   if (mode === "plain") return `The lines around it:\n${around.trim() || "(none)"}\n\n${fill(mode, excerpt, note)}`;
   const recent = transcript.length > 16000 ? `[…]\n${transcript.slice(-16000)}` : transcript;
-  return `Pre-interview notes:\n${context.trim() || "(none)"}\n\nLive transcript so far:\n${recent.trim() || "(nothing yet)"}\n\n${fill(mode, excerpt, note)}`;
+  return `${documentsBlock(documents)}Pre-interview notes:\n${context.trim() || "(none)"}\n\nLive transcript so far:\n${recent.trim() || "(nothing yet)"}\n\n${fill(mode, excerpt, note)}`;
 }
 
 // What the suggest route sends to OpenRouter, shown on the page. Research turns on OpenRouter's web search (the Exa

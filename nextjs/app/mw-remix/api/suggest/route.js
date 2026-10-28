@@ -1,7 +1,9 @@
 import { env } from "../../../../lib/keys.mjs";
 import { asks, suggestMessage, suggestRequest } from "../../prompts.mjs";
 
-// POST { model, mode, instructions, context, transcript, excerpt, note, around } → { text, sources, cost }.
+// POST { model, mode, instructions, context, transcript, excerpt, note, around, documents } → { text, sources, cost }.
+// `documents` is [{ name, text }]: Markdown or text files the producer uploaded, sent ahead of the notes in every mode
+// but "plain".
 // The producer's instructions go to a chat model on OpenRouter as the system prompt, with the pre-interview notes and
 // the live transcript so far (only the end of a long one). `mode` says what's wanted:
 // - "starter": one opening question for the host, before or at the start of the interview.
@@ -15,13 +17,14 @@ import { asks, suggestMessage, suggestRequest } from "../../prompts.mjs";
 // The prompts themselves are in ../../prompts.mjs, which the page shows.
 
 export async function POST(request) {
-  const { model = "anthropic/claude-haiku-5.5", mode = "question", instructions = "", context = "", transcript = "", excerpt = "", note = "", around = "" } = await request.json();
+  const { model = "anthropic/claude-haiku-5.5", mode = "question", instructions = "", context = "", transcript = "", excerpt = "", note = "", around = "", documents = [] } = await request.json();
+  const docs = Array.isArray(documents) ? documents.filter((doc) => doc && typeof doc.text === "string").map((doc) => ({ name: String(doc.name || ""), text: doc.text })) : [];
   const key = await env("OPENROUTER_API_KEY");
   if (!key) return Response.json({ error: "No OPENROUTER_API_KEY in the repo's .env." }, { status: 500 });
   if (!asks[mode]) return Response.json({ error: `Unknown mode "${mode}".` }, { status: 400 });
   if (!["starter", "beatsheet"].includes(mode) && !excerpt.trim()) return Response.json({ error: "Nothing highlighted." }, { status: 400 });
-  if (mode === "beatsheet" && !transcript.trim() && !context.trim()) return Response.json({ error: "Nothing to work from yet: record something or add notes first." }, { status: 400 });
-  const message = suggestMessage({ mode, context, transcript, excerpt, note, around });
+  if (mode === "beatsheet" && !transcript.trim() && !context.trim() && !docs.length) return Response.json({ error: "Nothing to work from yet: record something or add notes first." }, { status: 400 });
+  const message = suggestMessage({ mode, context, transcript, excerpt, note, around, documents: docs });
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
