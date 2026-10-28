@@ -408,7 +408,7 @@ export default function Machine({ apiBase, storageKey }) {
       </div>
 
       <details className={styles.step} open={!recording && !lines.length}>
-        <summary><span className={styles.stepNumber}>2</span><span className={styles.stepTitle}><strong>Setup</strong><small>Which input, who is on each microphone, how speech is transcribed{settings.kind !== "pre-interview" ? ", and the pre-interview notes" : ""}</small></span><span className={styles.stepCaret} aria-hidden="true" /></summary>
+        <summary><span className={styles.stepNumber}>2</span><span className={styles.stepTitle}><strong>Technical setup</strong><small>Which input, who is on each microphone, and how speech is transcribed</small></span><span className={styles.stepCaret} aria-hidden="true" /></summary>
         <div className={styles.fields}>
           <label>Input
             <span className={styles.row}>
@@ -451,9 +451,18 @@ export default function Machine({ apiBase, storageKey }) {
             <input type="checkbox" checked={settings.bleedGate} onChange={(e) => set({ bleedGate: e.target.checked })} />
             Bleed gate: only the louder microphone counts as speaking, so a voice picked up by both isn't transcribed twice
           </label>}
+        </div>
+      </details>
+
+      <details className={styles.step} open={!recording && !lines.length}>
+        <summary><span className={styles.stepNumber}>3</span><span className={styles.stepTitle}><strong>Context setup</strong><small>What the AI reads and is told: your documents, the pre-interview notes, the prompts, and every request as it goes out</small></span><span className={styles.stepCaret} aria-hidden="true" /></summary>
+        <div className={styles.sent}>
+          <div className={styles.sentWide}>
+            <h3>What the AI reads</h3>
+            <div className={styles.fields}>
           <label className={styles.wide}>Context
             <input type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" multiple onChange={(e) => { addDocuments(e.target.files); e.target.value = ""; }} />
-            <small>Upload as many Markdown or text files as you like: the pre-interview transcript, the beat sheet you made from it, the guest's context repository README, your own notes. The AI reads all of them for the starter question, every highlighted question, research, and the beat sheet.</small>
+            <small>Upload as many Markdown or text files as you like: the pre-interview transcript, the beat sheet you made from it, the guest's context repository README, your own notes. The AI reads all of them, with the notes below, for the starter question, every highlighted question, research, and the beat sheet.</small>
             {documents.length > 0 && (
               <ul className={styles.documents}>
                 {documents.map((doc) => (
@@ -463,17 +472,13 @@ export default function Machine({ apiBase, storageKey }) {
             )}
           </label>
           {settings.kind === "pre-interview"
-            ? <p className={styles.fieldNote}>There are no notes yet: this recording makes them. When you're done, <strong>Use as pre-interview notes</strong> above the transcript keeps it for the practice run and the live interview.</p>
+            ? <p className={styles.fieldNote}>There are no pre-interview notes yet: this recording makes them. When you're done, <strong>Use as pre-interview notes</strong> above the transcript keeps the transcript here for the practice run and the live interview.</p>
             : <label className={styles.wide}>Pre-interview notes
               <textarea rows={5} value={context} onChange={(e) => setContext(e.target.value)} placeholder="What the producer learned before the interview. Paste notes or a transcript here, or record the pre-interview on this machine and use its transcript." />
               <small>The AI reads these for the starter question and every follow-up.</small>
             </label>}
-        </div>
-      </details>
-
-      <details className={styles.step} open={!recording && !lines.length}>
-        <summary><span className={styles.stepNumber}>3</span><span className={styles.stepTitle}><strong>What gets sent</strong><small>Every request the machine makes to the AI, with the prompts you can change</small></span><span className={styles.stepCaret} aria-hidden="true" /></summary>
-        <div className={styles.sent}>
+            </div>
+          </div>
           <div>
             <h3>Transcription</h3>
             <p>Each time someone pauses, what they just said goes to {settings.model === "local-whisper" ? "your local Whisper server" : `${transcriptionModels.find(([id]) => id === settings.model)?.[1] || settings.model} through OpenRouter`} as this request. The hint helps it spell names and terms; it isn't an instruction, and the model only transcribes.</p>
@@ -484,7 +489,7 @@ export default function Machine({ apiBase, storageKey }) {
           </div>
           <div>
             <h3>Questions and research</h3>
-            <p>Starter question, Beat sheet, and Research each send one request: your instructions as the system prompt, then any documents you uploaded under Setup, the pre-interview notes, the transcript so far, and the ask. Research adds OpenRouter's web search (the Exa engine, which cites its sources) and costs a little more per call. A Question highlight sends two requests at once: the framed one, and an unframed one that gets none of your instructions, notes, or transcript, only the passage, the lines around it, and your note. Its single question is tagged <em>Unframed</em>, so you can compare. The prompts live in <code>app/machine/prompts.mjs</code>.</p>
+            <p>Starter question, Beat sheet, and Research each send one request: your instructions as the system prompt, then the documents and notes above, the transcript so far, and the ask. Research adds OpenRouter's web search (the Exa engine, which cites its sources) and costs a little more per call. A Question highlight sends two requests at once: the framed one, and an unframed one that gets none of your instructions, notes, or transcript, only the passage, the lines around it, and your note. Its single question is tagged <em>Unframed</em>, so you can compare. The prompts live in <code>app/machine/prompts.mjs</code>.</p>
             <label className={styles.block}>Model
               <select value={settings.suggestModel} onChange={(e) => set({ suggestModel: e.target.value })}>
                 {suggestModels.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
@@ -578,7 +583,7 @@ export default function Machine({ apiBase, storageKey }) {
 
         <section className={styles.producer} aria-label="Producer">
           <header className={styles.panelHead}><h2>Producer</h2></header>
-          {!context.trim() && !documents.length && settings.kind !== "pre-interview" && <p className={styles.hint}>No pre-interview notes or documents yet. The AI works better with them: add them under Setup, or record the pre-interview first.</p>}
+          {!context.trim() && !documents.length && settings.kind !== "pre-interview" && <p className={styles.hint}>No pre-interview notes or documents yet. The AI works better with them: add them under Context setup, or record the pre-interview first.</p>}
           <div className={styles.suggestBar}>
             <button type="button" className={styles.primary} onClick={() => ask("starter")} disabled={!!busy}>{busy === "starter" ? "Thinking…" : "Starter question"}</button>
             <span className={styles.hint}>Then highlight any part of the transcript for a follow-up question, or to research a claim.</span>

@@ -69,6 +69,8 @@
 .stepLabel { display: flex; align-items: center; gap: 12px; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.03em; }
 /* "What gets sent": the requests, shown as they go out. */
 .sent { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 22px 32px; padding: 4px 0 20px; }
+.sentWide { grid-column: 1 / -1; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.sentWide .fields { padding: 0; }
 .sent h3 { margin: 0 0 8px; font-size: 16px; letter-spacing: -.02em; }
 .sent p { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .sent .block { margin-bottom: 12px; }
