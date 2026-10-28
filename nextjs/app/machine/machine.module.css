@@ -1,5 +1,5 @@
-/* The machine's styles, scoped to this folder (a CSS module), so the Remix copy can change its own without touching
-   this one. Colors come from the site's tokens in app/globals.css. */
+/* The machine's styles, scoped to this folder (a CSS module), so /machine and /remix each have their own copy and
+   changing one never touches the other. Colors come from the site's tokens in app/globals.css. */
 
 .machine { display: grid; gap: 20px; }
 .machine button { font: inherit; cursor: pointer; }
@@ -37,21 +37,18 @@
 .error { border: 1px solid var(--error); color: var(--error); }
 .error button { margin-left: 8px; border: 0; background: none; color: inherit; text-decoration: underline; }
 
-.setup, .instructions { border: 1px solid var(--line); border-radius: 12px; padding: 0 18px; }
-.setup summary, .instructions summary { padding: 14px 0; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; cursor: pointer; }
+.setup { border: 1px solid var(--line); border-radius: 12px; padding: 0 18px; }
+.setup summary { padding: 14px 0; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; cursor: pointer; }
 .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 22px; padding: 4px 0 20px; }
 .fields label, .block { display: grid; gap: 6px; color: var(--muted); font-size: 13px; font-weight: 600; }
 .fields small { color: var(--muted); font-weight: 400; line-height: 1.4; }
 .row { display: flex; gap: 8px; }
 .row select { flex: 1; min-width: 0; }
-.row button, .small, .actions button, .actions .linkButton, .marks button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font-size: 13px; white-space: nowrap; }
+.row button, .actions button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font-size: 13px; white-space: nowrap; }
 .check { display: flex !important; grid-template-columns: none; align-items: flex-start; gap: 8px; color: var(--muted); font-size: 13px; font-weight: 500; line-height: 1.4; }
 .check input { margin-top: 2px; accent-color: var(--accent); }
 
-.columns { display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); gap: 20px; align-items: start; }
-@media (max-width: 860px) { .columns { grid-template-columns: 1fr; } }
-.transcript, .producer { display: grid; gap: 14px; padding: 20px; border: 1px solid var(--line); border-radius: 16px; }
-.producer { position: sticky; top: 16px; }
+.transcript { display: grid; gap: 14px; padding: 20px; border: 1px solid var(--line); border-radius: 16px; }
 .panelHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
 .panelHead h2 { margin: 0; font-size: 22px; letter-spacing: -.03em; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -65,21 +62,3 @@
 .lines [contenteditable] { outline: none; border-radius: 4px; }
 .lines [contenteditable]:focus { background: var(--hover); }
 .pending { color: var(--muted); animation: pulse 1.2s ease-in-out infinite; }
-
-.suggestBar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.primary { padding: 11px 18px; border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 800 !important; }
-.suggestions { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.suggestions li { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
-.question { padding: 0; border: 0; background: none; color: var(--ink); font-size: 16px; font-weight: 600; line-height: 1.4; text-align: left; }
-.question:hover { color: var(--accent); }
-.marks { display: flex; gap: 6px; }
-.marks button { padding: 4px 10px; font-size: 12px; }
-.asked { opacity: .55; border-color: var(--ok) !important; }
-.skipped { opacity: .35; }
-.instructions { display: grid; }
-.instructions .block { margin-bottom: 12px; }
-.instructions .small { justify-self: start; margin-bottom: 18px; }
-
-.card { position: fixed; inset: 0; z-index: 20; display: grid; place-content: center; gap: 30px; padding: 8vw; border: 0; background: var(--paper); color: var(--ink); text-align: center; }
-.card span { font-size: clamp(36px, 6vw, 84px); font-weight: 800; line-height: 1.08; letter-spacing: -.04em; text-wrap: balance; }
-.card small { color: var(--muted); font-size: 14px; }

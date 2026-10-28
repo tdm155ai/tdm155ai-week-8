@@ -5,8 +5,9 @@ This repository is the week 8 site for TDM 155AI (*Making Stuff in the Age of AI
 ## Where things go
 
 - **`nextjs/content/`**: the Markdown the site shows; each file is a page at the same path. `content/docs/` is the Docs section, shown with a sidebar at `/docs`.
-- **`nextjs/app/machine/`**: Marlon's recording and interviewing machine. Don't change it when a student asks for changes; change their copy.
-- **`nextjs/app/remix/`**: the student's copy of the machine. This is where student changes go. It's self-contained: `page.jsx`, `Machine.jsx` (the page's controls and logic), `recorder.mjs` (the audio engine in the browser), `machine.module.css` (its styles), and `api/transcribe/` and `api/suggest/` (its server routes). Changing it never affects `/machine`.
+- **`nextjs/app/machine/`**: the recording machine in its simplest form (record, transcribe as you talk, download Markdown). Don't change it when a student asks for changes; change their copy. `machine/multi/` is the multi-mic version, and `machine/api/suggest/` exists only for it.
+- **`nextjs/app/remix/`**: the student's copy of the machine. This is where student changes go. It's self-contained: `page.jsx`, `Machine.jsx` (the page's controls and logic), `recorder.mjs` (the audio engine in the browser), `machine.module.css` (its styles), and `api/transcribe/` (its server route). Changing it never affects `/machine`.
+- **`nextjs/app/mw-remix/`**: a worked example of what a remix can become (an AI producer steered by highlighting the transcript, research with sources, a beat sheet, AI-sourced questions flagged). Students can read it for ideas and copy from it; don't change it for them either. Its prompts are in `prompts.mjs`, which its page and routes share.
 
 See `README.md` for how the machine works.
 

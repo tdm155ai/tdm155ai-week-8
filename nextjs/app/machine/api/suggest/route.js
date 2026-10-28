@@ -1,5 +1,6 @@
 import { env } from "../../../../lib/keys.mjs";
 
+// Used by the multi-mic machine at /machine/multi (the simple machine itself has no AI producer).
 // POST { model, instructions, context, transcript } → { text }. Sends the producer's instructions, the pre-interview
 // notes, and the live transcript so far to a chat model on OpenRouter, and returns its follow-up questions as text.
 // Only the end of a long transcript is sent.

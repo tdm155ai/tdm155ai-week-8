@@ -46,6 +46,7 @@ export class MultiRecorder {
   setup(channels, rate) {
     this.channels = channels;
     this.floors = [];
+    this.active = [];
     this.samples = 0;
     this.lastLevels = 0;
     this.segmenters = Array.from({ length: channels }, (_, channel) => new Segmenter(rate, (segment) => this.onSegment({ channel, ...segment }), this.settings));
@@ -120,27 +121,34 @@ export class MultiRecorder {
   }
 
   // Speech detection. With `auto` on (the default), each microphone's threshold follows its own background level: the
-  // floor drops quickly to the quietest moments and rises slowly, and speech is anything 12 dB above it (and above
-  // −60 dB). That copes with inputs whose gain is set low, where a fixed threshold misses quiet talkers. With the bleed
-  // gate on, only the loudest microphone in use counts as speaking at any moment: the person nearest a microphone is
-  // loudest on it, and the same voice on the other microphones (bleed) is quieter.
+  // floor drops quickly to the quietest moments and rises slowly (and barely at all while that microphone is picking up
+  // speech, so long talking doesn't lift the threshold into the voice). Speech starts 12 dB above the floor (and above
+  // −60 dB) and keeps going until it drops to 6 dB above it. That copes with inputs whose gain is set low, where a fixed
+  // threshold misses quiet talkers. With the bleed gate on, only the loudest microphone in use counts as speaking at
+  // any moment: the person nearest a microphone is loudest on it, and the same voice on the others (bleed) is quieter.
   block(data) {
+    if (!this.segmenters) return; // a block that arrived after stop()
     const startSample = this.samples;
     this.samples += data[0].length;
     const levels = data.map(rms);
     const { threshold, auto, bleedGate, enabled } = this.settings;
     this.floors ||= [];
-    const thresholds = levels.map((level, c) => {
+    this.active ||= [];
+    const detected = levels.map((level, c) => {
       const floor = this.floors[c] ?? level;
-      this.floors[c] = level < floor ? floor * 0.7 + level * 0.3 : floor * 0.997 + level * 0.003;
-      return auto ? Math.max(this.floors[c] * 4, 0.001) : threshold;
+      const start = auto ? Math.max(floor * 4, 0.001) : threshold;
+      const speaking = level > (this.active[c] ? start / 2 : start);
+      this.active[c] = speaking;
+      this.floors[c] = level < floor ? floor * 0.7 + level * 0.3 : speaking ? floor * 0.9997 + level * 0.0003 : floor * 0.997 + level * 0.003;
+      return [speaking, start];
     });
+    const thresholds = detected.map(([, start]) => start);
     const now = performance.now();
     if (now - this.lastLevels > 50) { this.lastLevels = now; this.onLevels(levels.map(toDb), thresholds.map(toDb)); }
     const loudest = Math.max(0, ...levels.filter((_, i) => enabled[i] !== false));
     data.forEach((samples, c) => {
       if (!this.segmenters?.[c]) return;
-      const speaking = enabled[c] !== false && levels[c] > thresholds[c] && (!bleedGate || levels[c] >= loudest);
+      const speaking = enabled[c] !== false && detected[c][0] && (!bleedGate || levels[c] >= loudest);
       this.segmenters[c].push(samples, speaking, startSample);
     });
   }

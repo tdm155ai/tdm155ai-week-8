@@ -1,0 +1,140 @@
+/* The machine's styles, scoped to this folder (a CSS module), so it never touches /machine or
+   /remix. Colors come from the site's tokens in app/globals.css. */
+
+.machine { display: grid; gap: 20px; }
+.machine button { font: inherit; cursor: pointer; }
+.machine button:disabled { cursor: default; opacity: .45; }
+.machine select, .machine input:not([type]), .machine input[type="text"], .machine textarea {
+  width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--wash); color: var(--ink); font: inherit; font-size: 14px;
+}
+.machine textarea { resize: vertical; line-height: 1.5; }
+.machine code { font-size: .92em; }
+
+.deck { display: grid; gap: 18px; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--wash); }
+.kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+.kind, .kindOn { padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; }
+.kindOn { border-color: var(--accent); color: var(--ink); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+
+.transport { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; }
+.record, .stop { display: inline-flex; align-items: center; gap: 12px; padding: 14px 26px; border: 0; border-radius: 999px; font-size: 18px; font-weight: 800; letter-spacing: -.01em; }
+.record { background: var(--accent); color: var(--accent-ink); }
+.stop { background: var(--ink); color: var(--paper); }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: currentColor; }
+.stop .dot { border-radius: 2px; }
+.clock { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.onAir { color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .45; } }
+
+.meters { display: grid; gap: 10px; }
+.meter { display: grid; grid-template-columns: minmax(120px, 200px) 1fr; align-items: center; gap: 14px; }
+.meterName { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meterTrack { position: relative; height: 12px; border-radius: 6px; background: var(--paper); overflow: hidden; }
+.meterFill { position: absolute; inset: 0 auto 0 0; transition: width 60ms linear; }
+.meterMark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); opacity: .6; }
+
+.warn, .error { margin: 0; padding: 10px 14px; border-radius: 10px; font-size: 14px; line-height: 1.5; }
+.warn { border: 1px solid var(--accent); }
+.error { border: 1px solid var(--error); color: var(--error); }
+.error button { margin-left: 8px; border: 0; background: none; color: inherit; text-decoration: underline; }
+
+/* Steps 1 and 2 (Setup, What gets sent) sit above the Record deck (step 3) so they're read first. */
+.step { border: 1px solid var(--line); border-radius: 16px; padding: 0 22px; background: var(--wash); }
+.step summary { display: flex; align-items: center; gap: 16px; padding: 18px 0; cursor: pointer; list-style: none; }
+.step summary::-webkit-details-marker { display: none; }
+.step[open] summary { border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+.stepNumber { display: inline-grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 14px; font-weight: 800; }
+.stepTitle { display: grid; gap: 2px; min-width: 0; }
+.stepTitle strong { font-size: 20px; letter-spacing: -.03em; }
+.stepTitle small { color: var(--muted); font-size: 13px; line-height: 1.4; }
+.stepCaret { display: grid; place-items: center; flex: none; width: 34px; height: 34px; margin-left: auto; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); transition: transform .15s; }
+.stepCaret::before { content: ""; width: 10px; height: 10px; margin-top: -5px; border-right: 2.5px solid currentColor; border-bottom: 2.5px solid currentColor; transform: rotate(45deg); }
+.step[open] .stepCaret { transform: rotate(180deg); }
+.step summary:hover .stepCaret { border-color: var(--accent); color: var(--accent); }
+.stepStatic { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 18px 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--wash); }
+.stepStatic .stepTitle { flex: 1; min-width: 240px; }
+.stepStatic .kinds { flex: none; }
+.wide { grid-column: 1 / -1; }
+.fieldNote { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.fieldNote strong { color: var(--ink); }
+.accentButton { border-color: var(--accent) !important; color: var(--accent) !important; font-weight: 700; }
+.saved { align-self: center; color: var(--ok); font-size: 13px; font-weight: 700; }
+.stepLabel { display: flex; align-items: center; gap: 12px; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.03em; }
+/* "What gets sent": the requests, shown as they go out. */
+.sent { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 22px 32px; padding: 4px 0 20px; }
+.sent h3 { margin: 0 0 8px; font-size: 16px; letter-spacing: -.02em; }
+.sent p { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.sent .block { margin-bottom: 12px; }
+.sent .small { margin-bottom: 12px; }
+.sent pre { margin: 0 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--code); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 22px; padding: 4px 0 20px; }
+.fields label, .block { display: grid; gap: 6px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.fields small { color: var(--muted); font-weight: 400; line-height: 1.4; }
+.row { display: flex; gap: 8px; }
+.row select { flex: 1; min-width: 0; }
+.row button, .small, .actions button, .actions .linkButton, .marks button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font-size: 13px; white-space: nowrap; }
+.check { display: flex !important; grid-template-columns: none; align-items: flex-start; gap: 8px; color: var(--muted); font-size: 13px; font-weight: 500; line-height: 1.4; }
+.check input { margin-top: 2px; accent-color: var(--accent); }
+
+.columns { display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .columns { grid-template-columns: 1fr; } }
+.transcript, .producer { display: grid; gap: 14px; padding: 20px; border: 1px solid var(--line); border-radius: 16px; }
+.transcript { position: relative; }
+.producer { position: sticky; top: 16px; }
+.panelHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.panelHead h2 { margin: 0; font-size: 22px; letter-spacing: -.03em; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.empty { margin: 0; color: var(--muted); line-height: 1.6; }
+
+.lines { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; font-size: 17px; line-height: 1.55; }
+.lineA, .lineB { display: grid; gap: 2px; padding-left: 14px; border-left: 3px solid var(--accent); }
+.lineB { border-left-color: var(--ok); }
+.who { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.who time { margin-left: 6px; font-weight: 500; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.lines [contenteditable] { outline: none; border-radius: 4px; }
+.lines [contenteditable]:focus { background: var(--hover); }
+.pending { color: var(--muted); animation: pulse 1.2s ease-in-out infinite; }
+
+/* AI-sourced lines: a question the host read out (recognized when transcribed) or logged with Asked / Used. */
+.lineAi { border-left-style: dashed; background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 0 8px 8px 0; padding-right: 10px; }
+.badge { margin-left: 8px; padding: 2px 7px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 10px; letter-spacing: .06em; }
+.sourceToggle { margin-left: 8px; padding: 0; border: 0; background: none; color: var(--muted); font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; text-decoration: underline; opacity: 0; }
+.lineA:hover .sourceToggle, .lineB:hover .sourceToggle, .sourceToggle:focus-visible { opacity: 1; }
+.tally { margin-left: 10px; vertical-align: middle; padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); font-size: 12px; font-weight: 700; letter-spacing: 0; }
+
+/* The popover under a highlighted passage: a one-line note, then Question or Research. */
+.popover { position: absolute; z-index: 10; display: grid; gap: 8px; width: min(340px, calc(100% - 40px)); padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--wash); box-shadow: 0 12px 32px rgba(0, 0, 0, .35); }
+.popoverQuote { color: var(--muted); font-size: 12px; line-height: 1.4; font-style: italic; }
+.popover input { font-size: 13px !important; padding: 7px 10px !important; }
+.popoverChoice { display: flex; gap: 4px; }
+.choice, .choiceOn { flex: 1; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; }
+.choiceOn { border-color: var(--accent); color: var(--ink); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.popoverButtons { display: flex; gap: 6px; align-items: center; }
+.popoverButtons button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font-size: 13px; font-weight: 700; }
+.popoverPrimary { border-color: var(--accent) !important; background: var(--accent) !important; color: var(--accent-ink) !important; }
+.popoverClose { margin-left: auto; border: 0 !important; color: var(--muted) !important; font-size: 18px !important; line-height: 1; }
+
+.suggestBar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.primary { padding: 11px 18px; border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 800 !important; }
+.hint { color: var(--muted); font-size: 13px; line-height: 1.4; }
+.suggestions { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.suggestions li { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
+.question { padding: 0; border: 0; background: none; color: var(--ink); font-size: 16px; font-weight: 600; line-height: 1.4; text-align: left; }
+.question:hover { color: var(--accent); }
+.marks { display: flex; gap: 6px; }
+.marks button { padding: 4px 10px; font-size: 12px; }
+.from { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.research { background: color-mix(in srgb, var(--ok) 7%, transparent); }
+.finding { padding: 0; border: 0; background: none; color: var(--ink); font-size: 14px; line-height: 1.5; text-align: left; white-space: pre-line; }
+.finding:hover { color: var(--accent); }
+.kindTag { align-self: center; margin-right: 4px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.sources { display: grid; gap: 4px; font-size: 12px; }
+.sources a { color: var(--muted); text-decoration: underline; }
+.sources a:hover { color: var(--accent); }
+.sourcesFold summary { color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+.sourcesFold summary:hover { color: var(--accent); }
+.sourcesFold[open] summary { margin-bottom: 6px; }
+
+.card { position: fixed; inset: 0; z-index: 20; display: grid; place-content: center; gap: 30px; padding: 8vw; border: 0; background: var(--paper); color: var(--ink); text-align: center; }
+.card span { font-size: clamp(36px, 6vw, 84px); font-weight: 800; line-height: 1.08; letter-spacing: -.04em; text-wrap: balance; }
+.card .cardLong { max-width: 56rem; font-size: clamp(20px, 2.6vw, 34px); font-weight: 600; line-height: 1.3; letter-spacing: -.02em; text-align: left; text-wrap: pretty; white-space: pre-line; }
+.card small { color: var(--muted); font-size: 14px; }

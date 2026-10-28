@@ -171,6 +171,7 @@ export class Recorder {
     this.channels = this.stream.getAudioTracks()[0].getSettings().channelCount || 1;
     this.samples = 0;
     this.floors = [];
+    this.active = [];
     const rate = this.context.sampleRate;
     const options = this.settings;
     this.segmenters = [0, 1].map((channel) => new Segmenter(rate, (segment) => this.onSegment({ channel, ...segment }), options));
@@ -187,23 +188,29 @@ export class Recorder {
     return { channels: this.channels, rate };
   }
 
-  // With auto on, a level counts as speech when it's 12 dB above that input's background (and above −60 dB): the
-  // background drops quickly to the quietest moments and rises slowly, which copes with inputs whose gain is set low.
-  // `key` is the input (0, 1), or 2 for the mixed signal.
-  threshold(key, level) {
+  // Speech detection for one input. With auto on, speech starts when the level is 12 dB above that input's background
+  // (and above −60 dB) and keeps going until it drops to 6 dB above it (hysteresis, so a voice's quieter syllables
+  // don't end an utterance). The background drops quickly to the quietest moments and rises slowly, and barely at all
+  // while someone is speaking, so a long stretch of talking doesn't lift the threshold into the voice itself. That
+  // copes with inputs whose gain is set low. `key` is the input (0, 1), or 2 for the mixed signal.
+  // Returns [speaking, threshold], the threshold being where speech starts (the line on the meter).
+  detect(key, level) {
     const floor = this.floors[key] ?? level;
-    this.floors[key] = level < floor ? floor * 0.7 + level * 0.3 : floor * 0.997 + level * 0.003;
-    return this.settings.auto ? Math.max(this.floors[key] * 4, 0.001) : this.settings.threshold;
+    const threshold = this.settings.auto ? Math.max(floor * 4, 0.001) : this.settings.threshold;
+    const speaking = level > (this.active[key] ? threshold / 2 : threshold);
+    this.active[key] = speaking;
+    this.floors[key] = level < floor ? floor * 0.7 + level * 0.3 : speaking ? floor * 0.9997 + level * 0.0003 : floor * 0.997 + level * 0.003;
+    return [speaking, threshold];
   }
 
   block(data, rate, showLevels) {
+    if (!this.segmenters) return; // a block that arrived after stop()
     const startSample = this.samples;
     this.samples += data[0].length;
     // With a mono input (or a stereo one with nothing on the right), there is only one voice to cut.
     const left = data[0];
     const right = this.channels > 1 && data[1] ? data[1] : data[0];
     const levels = [rms(left), rms(right)];
-    const thresholds = levels.map((level, c) => this.threshold(c, level));
     const { mode, bleedGate } = this.settings;
     // A mono microphone often arrives as the same sound on both sides; then there's one voice, not two.
     let difference = 0;
@@ -212,23 +219,25 @@ export class Recorder {
     if (mode === "mix" || same) {
       const mixed = new Float32Array(left.length);
       for (let i = 0; i < left.length; i++) mixed[i] = (left[i] + right[i]) / 2;
-      const level = rms(mixed);
-      const threshold = this.threshold(2, level);
+      const [speaking, threshold] = this.detect(2, rms(mixed));
       showLevels(levels, [threshold, threshold]);
-      this.segmenters[0].push(mixed, level > threshold, startSample);
+      this.segmenters[0].push(mixed, speaking, startSample);
       return;
     }
-    showLevels(levels, thresholds);
+    const detected = levels.map((level, c) => this.detect(c, level));
+    showLevels(levels, detected.map(([, threshold]) => threshold));
     // With the bleed gate on, only the louder microphone counts as speaking: the same voice is quieter on the other one.
     [left, right].forEach((samples, c) => {
-      const speaking = levels[c] > thresholds[c] && (!bleedGate || levels[c] >= levels[1 - c]);
+      const speaking = detected[c][0] && (!bleedGate || levels[c] >= levels[1 - c]);
       this.segmenters[c].push(samples, speaking, startSample);
     });
   }
 
   // Stop, send off whatever was mid-utterance, and resolve to the whole session as one audio file (a Blob).
   async stop() {
+    if (this.tap) this.tap.port.onmessage = null;
     this.segmenters?.forEach((segmenter) => segmenter.flush());
+    this.segmenters = null;
     const recorded = new Promise((resolve) => {
       if (!this.media || this.media.state === "inactive") return resolve(null);
       this.media.onstop = () => resolve(new Blob(this.chunks, { type: this.media.mimeType || "audio/webm" }));

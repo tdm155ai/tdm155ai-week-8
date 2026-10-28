@@ -1,0 +1,53 @@
+import { env } from "../../../../lib/keys.mjs";
+import { transcriptionRequest } from "../../prompts.mjs";
+
+// POST { model, data, format, language, prompt } → { text, cost }. `data` is one utterance as base64 audio (a WAV from
+// the page); `prompt` is the hint (speakers' names, terms) the page shows under "What gets sent".
+// Every model goes through OpenRouter's speech-to-text endpoint with the OPENROUTER_API_KEY in the root .env, except
+// "local-whisper", which goes to your own Whisper server at WHISPER_URL (for example whisper.cpp's whisper-server,
+// http://127.0.0.1:8080/inference), so nothing leaves the computer.
+// GET → which of the two is set up (yes or no only; never the keys).
+
+export async function GET() {
+  return Response.json({ openrouter: Boolean(await env("OPENROUTER_API_KEY")), local: Boolean(await env("WHISPER_URL")) });
+}
+
+async function openrouter({ model, data, format, language, prompt }) {
+  const key = await env("OPENROUTER_API_KEY");
+  if (!key) throw new Error("No OPENROUTER_API_KEY in the repo's .env.");
+  const body = transcriptionRequest({ model, language, prompt });
+  body.input_audio = { data, format };
+  const response = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const reply = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(reply.error?.message || `OpenRouter answered ${response.status}.`);
+  return { text: reply.text || "", cost: reply.usage?.cost ?? null };
+}
+
+async function localWhisper({ data, format, language, prompt }) {
+  const url = await env("WHISPER_URL");
+  if (!url) throw new Error("No WHISPER_URL in the repo's .env.");
+  const form = new FormData();
+  form.append("file", new Blob([Buffer.from(data, "base64")], { type: `audio/${format}` }), `utterance.${format}`);
+  form.append("response_format", "json");
+  if (language) form.append("language", language);
+  if (prompt) form.append("prompt", prompt);
+  const response = await fetch(url, { method: "POST", body: form });
+  const reply = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(reply.error || `The Whisper server answered ${response.status}.`);
+  return { text: (reply.text || "").trim(), cost: 0 };
+}
+
+export async function POST(request) {
+  const { model = "openai/gpt-4o-mini-transcribe", data, format = "wav", language = "", prompt = "" } = await request.json();
+  if (typeof data !== "string" || !data) return Response.json({ error: "No audio." }, { status: 400 });
+  try {
+    const result = model === "local-whisper" ? await localWhisper({ data, format, language, prompt }) : await openrouter({ model, data, format, language, prompt });
+    return Response.json(result);
+  } catch (error) {
+    return Response.json({ error: error.message }, { status: 502 });
+  }
+}
