@@ -18,5 +18,5 @@ This week you learn to make a podcast, and to interview someone and be interview
 ## On this site
 
 - **[Docs](/docs):** question tips, recording a podcast in GarageBand, and the gear and tools.
-- **[Machine](/machine):** the recording and interviewing machine. It records from your interface, transcribes as you talk, and suggests follow-up questions to the producer.
-- **[Remix](/remix):** your own copy of the machine. Change it however you like: the questions it suggests, how it labels speakers, what it shows. The code is in `nextjs/app/remix/`.
+- **[Interview machine](/machine):** records from your interface, transcribes as you talk, and suggests follow-up questions to the producer.
+- **[Remix](/remix):** your own copy of the interview machine. Change it however you like: the questions it suggests, how it labels speakers, what it shows. The code is in `nextjs/app/remix/`.

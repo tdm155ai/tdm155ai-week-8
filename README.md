@@ -3,8 +3,8 @@
 TDM 155AI week 8 (class 2026-10-28): Interviewing, being interviewed, and podcasting. A local Next app in `nextjs/` with three parts, one per link in the nav:
 
 - **Docs** (`/docs`, Markdown in `nextjs/content/docs/`): question tips for host, guest, and producer, recording a two-person podcast in GarageBand, and the gear and transcription models.
-- **Machine** (`/machine`, code in `nextjs/app/machine/`): the recording and interviewing machine. It records from an audio interface (a Focusrite with two microphones: input 1 and input 2 are two people) or any microphone, cuts the sound into utterances at each pause, transcribes each one as it ends, and gives the producer follow-up questions from the pre-interview notes and the transcript so far.
-- **Remix** (`/remix`, code in `nextjs/app/remix/`): an exact copy of the machine for students to change. Everything it needs is in its folder, including its own server routes and styles, so changing it never touches `/machine`.
+- **Interview machine** (`/machine`, code in `nextjs/app/machine/`). It records from an audio interface (a Focusrite with two microphones: input 1 and input 2 are two people) or any microphone, cuts the sound into utterances at each pause, transcribes each one as it ends, and gives the producer follow-up questions from the pre-interview notes and the transcript so far.
+- **Remix** (`/remix`, code in `nextjs/app/remix/`): an exact copy of the interview machine for students to change. Everything it needs is in its folder, including its own server routes and styles, so changing it never touches `/machine`.
 
 Private; nested in the Learning Lab's Notebook at `apps/tdm155ai/tdm155ai-week-8/`.
 

@@ -16,7 +16,7 @@ export default function RemixPage() {
       <SiteHeader current="remix" />
       <main id="main" className="machine-shell">
         <header className="machine-heading">
-          <p className="eyebrow">Your copy of the machine · <code>nextjs/app/remix/</code></p>
+          <p className="eyebrow">Your copy of the interview machine · <code>nextjs/app/remix/</code></p>
           <h1>Remix</h1>
           <p className="lede">The same machine, yours to change. Ask Claude Code to add a feature, change what the AI suggests, or redesign the page.</p>
         </header>
