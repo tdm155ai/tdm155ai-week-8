@@ -8,7 +8,8 @@ import styles from "../machine.module.css";
 // The multi-mic interview machine: the two-mic machine (../Machine.jsx) for 3 to 8 microphones, one speaker per
 // microphone. Transcription and follow-ups use the same server routes as the two-mic machine (/machine/api).
 
-const MAX = 8;
+// An interface can report more inputs than it has microphone sockets (an 18i20 reports 18: eight mic/line inputs
+// plus digital ones that are usually empty), so only the first `count` inputs are shown and used.
 const colors = ["var(--accent)", "var(--ok)", "#7fb3ff", "#e8a6ff", "#ffd36b", "#6be0d1", "#ff9f6b", "#c7c7c7"];
 
 const transcriptionModels = [
@@ -73,8 +74,9 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
     source: "native",
     nativeDevice: "",
     browserDevice: "",
-    names: ["Host", "Guest 1", "Guest 2", "Guest 3", "Guest 4", "Guest 5", "Guest 6", "Guest 7"],
-    enabled: [true, true, true, true, true, true, true, true],
+    count: 4,
+    names: [],
+    enabled: [],
     model: "openai/gpt-4o-mini-transcribe",
     language: "en",
     threshold: 0.02,
@@ -125,12 +127,14 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
   }, [recording]);
 
   useEffect(() => {
-    if (recorder.current) Object.assign(recorder.current.settings, { threshold: settings.threshold, bleedGate: settings.bleedGate, enabled: settings.enabled });
-  }, [settings.threshold, settings.bleedGate, settings.enabled]);
+    if (recorder.current) Object.assign(recorder.current.settings, { threshold: settings.threshold, bleedGate: settings.bleedGate, enabled: used });
+  }, [settings.threshold, settings.bleedGate, settings.enabled, settings.count]);
 
   const set = (patch) => setSettings((current) => ({ ...current, ...patch }));
-  const setName = (c, name) => set({ names: settings.names.map((n, i) => (i === c ? name : n)) });
-  const setEnabled = (c, on) => set({ enabled: settings.enabled.map((e, i) => (i === c ? on : e)) });
+  const names = Array.from({ length: 32 }, (_, c) => settings.names[c] || (c === 0 ? "Host" : `Guest ${c}`));
+  const used = Array.from({ length: 32 }, (_, c) => c < settings.count && settings.enabled[c] !== false);
+  const setName = (c, name) => { const next = [...names]; next[c] = name; set({ names: next }); };
+  const setEnabled = (c, on) => { const next = Array.from({ length: 32 }, (_, i) => settings.enabled[i] !== false); next[c] = on; set({ enabled: next }); };
 
   async function findNativeInputs() {
     try {
@@ -186,7 +190,7 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
       onSegment: (segment) => transcribe(segment, offset),
       onEnd: (message) => { setError(message); stop(); },
     });
-    const options = { threshold: settings.threshold, bleedGate: settings.bleedGate, enabled: settings.enabled };
+    const options = { threshold: settings.threshold, bleedGate: settings.bleedGate, enabled: used };
     try {
       const info = settings.source === "native"
         ? await engine.startNative(captureBase, settings.nativeDevice, options)
@@ -220,7 +224,7 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
       const response = await fetch(`${apiBase}/suggest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: settings.suggestModel, instructions, context, transcript: transcriptText(lines, settings.names) }),
+        body: JSON.stringify({ model: settings.suggestModel, instructions, context, transcript: transcriptText(lines, latest.current.names) }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || `Suggestions failed (${response.status}).`);
@@ -253,7 +257,7 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
 
   function exportTranscript() {
     const date = new Date().toISOString().slice(0, 10);
-    const body = lines.filter((line) => line.text).map((line) => `**${settings.names[line.channel]}** (${clock(line.start)}): ${line.text}`).join("\n\n");
+    const body = lines.filter((line) => line.text).map((line) => `**${names[line.channel]}** (${clock(line.start)}): ${line.text}`).join("\n\n");
     const md = `---\ntitle: Multi-mic interview, ${date}\ntranscribed_by: ${settings.model}\n---\n\n${body}\n`;
     download(`multi-interview-${date}.md`, new Blob([md], { type: "text/markdown" }));
   }
@@ -266,7 +270,8 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
     setElapsed(0);
   }
 
-  const shown = channels || MAX;
+  const shown = channels ? Math.min(settings.count, channels) : settings.count;
+  latest.current.names = names; // for suggest(), which reads the latest values
   const finished = lines.filter((line) => line.text);
   const thresholdDb = Math.round(20 * Math.log10(settings.threshold));
 
@@ -283,12 +288,12 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
         <div className={styles.meters}>
           {Array.from({ length: shown }, (_, c) => {
             const db = levels[c] ?? -60;
-            const on = settings.enabled[c] !== false;
+            const on = used[c];
             return (
               <div key={c} className={styles.meter} style={{ opacity: on ? 1 : .35 }}>
                 <span className={styles.meterName}>
                   <input type="checkbox" checked={on} onChange={(e) => setEnabled(c, e.target.checked)} aria-label={`Use input ${c + 1}`} style={{ accentColor: colors[c], marginRight: 8 }} />
-                  {`Input ${c + 1} · ${settings.names[c]}`}
+                  {`Input ${c + 1} · ${names[c]}`}
                 </span>
                 <span className={styles.meterTrack}>
                   <span className={styles.meterFill} style={{ width: `${((db + 60) / 60) * 100}%`, background: db > -6 ? "var(--error)" : colors[c] }} />
@@ -331,9 +336,13 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
               </span>
             </label>
           )}
+          <label>Microphones in use
+            <input type="number" min="1" max={channels || 18} value={settings.count} onChange={(e) => set({ count: Math.max(1, Math.min(channels || 18, Number(e.target.value) || 1)) })} />
+            <small>Inputs 1 to {settings.count}.{channels ? ` Your interface reports ${channels} inputs; the rest are ignored.` : ""}</small>
+          </label>
           {Array.from({ length: shown }, (_, c) => (
             <label key={c}>Input {c + 1} is
-              <input value={settings.names[c]} onChange={(e) => setName(c, e.target.value)} />
+              <input value={names[c]} onChange={(e) => setName(c, e.target.value)} />
             </label>
           ))}
           <label>Transcription
@@ -369,7 +378,7 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
           <ol className={styles.lines}>
             {lines.map((line) => (
               <li key={line.id} className={styles.lineA} style={{ borderLeftColor: colors[line.channel] }}>
-                <span className={styles.who}>{settings.names[line.channel]} <time>{clock(line.start)}</time></span>
+                <span className={styles.who}>{names[line.channel]} <time>{clock(line.start)}</time></span>
                 {line.pending ? <span className={styles.pending}>…</span> : <span contentEditable suppressContentEditableWarning onBlur={(e) => editLine(line.id, e.currentTarget.textContent)}>{line.text}</span>}
               </li>
             ))}
@@ -381,7 +390,7 @@ export default function MultiMachine({ apiBase, captureBase, storageKey }) {
           <label className={styles.block}>Pre-interview notes
             <textarea rows={5} value={context} onChange={(e) => setContext(e.target.value)} placeholder="Paste the pre-interview transcript or notes here." />
           </label>
-          <button type="button" className={styles.small} onClick={() => setContext(transcriptText(lines, settings.names))} disabled={!finished.length}>Use this transcript as the pre-interview</button>
+          <button type="button" className={styles.small} onClick={() => setContext(transcriptText(lines, names))} disabled={!finished.length}>Use this transcript as the pre-interview</button>
           <div className={styles.suggestBar}>
             <button type="button" className={styles.primary} onClick={suggest} disabled={suggesting}>{suggesting ? "Thinking…" : "Suggest follow-ups"}</button>
             <label className={styles.check}><input type="checkbox" checked={settings.autoSuggest} onChange={(e) => set({ autoSuggest: e.target.checked })} /> Automatically while recording</label>
