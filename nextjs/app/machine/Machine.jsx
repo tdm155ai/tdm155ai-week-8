@@ -79,6 +79,7 @@ export default function Machine({ apiBase, storageKey }) {
     model: "openai/gpt-4o-mini-transcribe",
     language: "en",
     threshold: 0.02,
+    auto: true,
     bleedGate: true,
     suggestModel: "anthropic/claude-haiku-5.5",
     autoSuggest: false,
@@ -92,6 +93,7 @@ export default function Machine({ apiBase, storageKey }) {
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [levels, setLevels] = useState([-60, -60]);
+  const [thresholds, setThresholds] = useState([]);
   const [channels, setChannels] = useState(0);
   const [keys, setKeys] = useState(null);
   const [error, setError] = useState("");
@@ -126,10 +128,10 @@ export default function Machine({ apiBase, storageKey }) {
     return () => clearInterval(timer);
   }, [recording]);
 
-  // Live changes to the speech threshold and bleed gate apply while recording.
+  // Live changes to speech detection and the bleed gate apply while recording.
   useEffect(() => {
-    if (recorder.current) Object.assign(recorder.current.settings, { threshold: settings.threshold, bleedGate: settings.bleedGate });
-  }, [settings.threshold, settings.bleedGate]);
+    if (recorder.current) Object.assign(recorder.current.settings, { auto: settings.auto, threshold: settings.threshold, bleedGate: settings.bleedGate });
+  }, [settings.auto, settings.threshold, settings.bleedGate]);
 
   const set = (patch) => setSettings((current) => ({ ...current, ...patch }));
 
@@ -170,11 +172,11 @@ export default function Machine({ apiBase, storageKey }) {
     // A new recording continues the transcript's clock from where the last one ended.
     const offset = lines.length ? Math.max(...lines.map((line) => line.start)) + 1 : 0;
     const engine = new Recorder({
-      onLevels: setLevels,
+      onLevels: (dbs, marks) => { setLevels(dbs); setThresholds(marks); },
       onSegment: (segment) => transcribe(segment, offset),
     });
     try {
-      const info = await engine.start(settings.deviceId, { mode: settings.mode, threshold: settings.threshold, bleedGate: settings.bleedGate });
+      const info = await engine.start(settings.deviceId, { mode: settings.mode, auto: settings.auto, threshold: settings.threshold, bleedGate: settings.bleedGate });
       recorder.current = engine;
       setChannels(info.channels);
       started.current = performance.now() - offset * 1000;
@@ -191,6 +193,7 @@ export default function Machine({ apiBase, storageKey }) {
     recorder.current = null;
     setRecording(false);
     setLevels([-60, -60]);
+    setThresholds([]);
     const blob = await engine?.stop();
     if (blob) setAudio(blob);
   }
@@ -278,7 +281,7 @@ export default function Machine({ apiBase, storageKey }) {
                 <span className={styles.meterName}>{settings.mode === "mix" ? "Level" : `Input ${c + 1} · ${name}`}</span>
                 <span className={styles.meterTrack}>
                   <span className={styles.meterFill} style={{ width: `${((db + 60) / 60) * 100}%`, background: db > -6 ? "var(--error)" : db > -20 ? "var(--accent)" : "var(--ok)" }} />
-                  <span className={styles.meterMark} style={{ left: `${((thresholdDb + 60) / 60) * 100}%` }} title="Speech threshold" />
+                  <span className={styles.meterMark} style={{ left: `${(((thresholds[c] ?? thresholdDb) + 60) / 60) * 100}%` }} title="Speech threshold" />
                 </span>
               </div>
             );
@@ -320,13 +323,17 @@ export default function Machine({ apiBase, storageKey }) {
           <label>Language
             <input value={settings.language} onChange={(e) => set({ language: e.target.value })} placeholder="en (blank: detect)" />
           </label>
-          <label>Speech threshold: {thresholdDb} dB
-            <input type="range" min="-50" max="-15" value={thresholdDb} onChange={(e) => set({ threshold: 10 ** (Number(e.target.value) / 20) })} />
-            <small>The line on the meters. Talking should go past it, and the room's hum shouldn't.</small>
+          <label className={styles.check}>
+            <input type="checkbox" checked={settings.auto} onChange={(e) => set({ auto: e.target.checked })} />
+            Automatic speech detection: each microphone learns its own background level, and speech is anything well above it (the line on each meter)
           </label>
+          {!settings.auto && <label>Speech threshold: {thresholdDb} dB
+            <input type="range" min="-60" max="-15" value={thresholdDb} onChange={(e) => set({ threshold: 10 ** (Number(e.target.value) / 20) })} />
+            <small>The line on the meters. Talking should go past it, and the room's hum shouldn't.</small>
+          </label>}
           {settings.mode === "split" && <label className={styles.check}>
             <input type="checkbox" checked={settings.bleedGate} onChange={(e) => set({ bleedGate: e.target.checked })} />
-            Bleed gate: only count a microphone as speaking when it's clearly louder than the other one
+            Bleed gate: only the louder microphone counts as speaking, so a voice picked up by both isn't transcribed twice
           </label>}
         </div>
       </details>

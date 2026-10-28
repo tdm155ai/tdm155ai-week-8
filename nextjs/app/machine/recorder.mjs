@@ -141,9 +141,10 @@ export class Recorder {
   constructor({ onLevels, onSegment }) {
     this.onLevels = onLevels;
     this.onSegment = onSegment;
-    // threshold: the level (0–1) that counts as speech; pause: seconds of quiet that end an utterance; longest: the
+    // auto: each input's threshold follows its own background level (see threshold() below); threshold: the fixed level
+    // (0–1) that counts as speech when auto is off; pause: seconds of quiet that end an utterance; longest: the
     // longest utterance before it's cut anyway; shortest: less speech than this is dropped (a cough, a click).
-    this.settings = { mode: "split", threshold: 0.02, bleedGate: true, pause: 0.8, longest: 15, shortest: 0.4 };
+    this.settings = { mode: "split", auto: true, threshold: 0.02, bleedGate: true, pause: 0.8, longest: 15, shortest: 0.4 };
   }
 
   async start(deviceId, settings = {}) {
@@ -169,13 +170,14 @@ export class Recorder {
 
     this.channels = this.stream.getAudioTracks()[0].getSettings().channelCount || 1;
     this.samples = 0;
+    this.floors = [];
     const rate = this.context.sampleRate;
     const options = this.settings;
     this.segmenters = [0, 1].map((channel) => new Segmenter(rate, (segment) => this.onSegment({ channel, ...segment }), options));
     let lastLevels = 0;
-    this.tap.port.onmessage = ({ data }) => this.block(data, rate, (levels) => {
+    this.tap.port.onmessage = ({ data }) => this.block(data, rate, (levels, thresholds) => {
       const now = performance.now();
-      if (now - lastLevels > 50) { lastLevels = now; this.onLevels(levels.map(toDb)); }
+      if (now - lastLevels > 50) { lastLevels = now; this.onLevels(levels.map(toDb), thresholds.map(toDb)); }
     });
 
     this.chunks = [];
@@ -185,6 +187,15 @@ export class Recorder {
     return { channels: this.channels, rate };
   }
 
+  // With auto on, a level counts as speech when it's 12 dB above that input's background (and above −60 dB): the
+  // background drops quickly to the quietest moments and rises slowly, which copes with inputs whose gain is set low.
+  // `key` is the input (0, 1), or 2 for the mixed signal.
+  threshold(key, level) {
+    const floor = this.floors[key] ?? level;
+    this.floors[key] = level < floor ? floor * 0.7 + level * 0.3 : floor * 0.997 + level * 0.003;
+    return this.settings.auto ? Math.max(this.floors[key] * 4, 0.001) : this.settings.threshold;
+  }
+
   block(data, rate, showLevels) {
     const startSample = this.samples;
     this.samples += data[0].length;
@@ -192,8 +203,8 @@ export class Recorder {
     const left = data[0];
     const right = this.channels > 1 && data[1] ? data[1] : data[0];
     const levels = [rms(left), rms(right)];
-    showLevels(levels);
-    const { mode, threshold, bleedGate } = this.settings;
+    const thresholds = levels.map((level, c) => this.threshold(c, level));
+    const { mode, bleedGate } = this.settings;
     // A mono microphone often arrives as the same sound on both sides; then there's one voice, not two.
     let difference = 0;
     for (let i = 0; i < left.length; i++) difference += (left[i] - right[i]) ** 2;
@@ -201,12 +212,16 @@ export class Recorder {
     if (mode === "mix" || same) {
       const mixed = new Float32Array(left.length);
       for (let i = 0; i < left.length; i++) mixed[i] = (left[i] + right[i]) / 2;
-      this.segmenters[0].push(mixed, rms(mixed) > threshold, startSample);
+      const level = rms(mixed);
+      const threshold = this.threshold(2, level);
+      showLevels(levels, [threshold, threshold]);
+      this.segmenters[0].push(mixed, level > threshold, startSample);
       return;
     }
+    showLevels(levels, thresholds);
+    // With the bleed gate on, only the louder microphone counts as speaking: the same voice is quieter on the other one.
     [left, right].forEach((samples, c) => {
-      const other = levels[1 - c];
-      const speaking = levels[c] > threshold && (!bleedGate || levels[c] > other * 1.6);
+      const speaking = levels[c] > thresholds[c] && (!bleedGate || levels[c] >= levels[1 - c]);
       this.segmenters[c].push(samples, speaking, startSample);
     });
   }
